@@ -13,7 +13,7 @@ import {
   Globe
 } from 'lucide-react';
 import { GoogleGenAI } from '@google/genai';
-import { SOCPhase, SOCState, LogEntry } from './types';
+import { SOCPhase, SOCState, LogEntry, ThreatEvent } from './types';
 import { MOCK_THREATS, AGENT_LIST } from './simulationData';
 
 // --- Components ---
@@ -135,18 +135,21 @@ const AgentStatusCard = ({ agent, phase }: AgentStatusProps) => {
   const getAgentDetails = () => {
     switch (agent.id) {
       case 'SUPERVISOR':
-        if (phase === 'INITIALIZING') return { status: 'BOOTING', active: true, color: 'text-accent-blue', icon: Cpu };
-        if (['RESPOND', 'LESSONS_LEARNT'].includes(phase)) return { status: 'ORCHESTRATING', active: true, color: 'text-accent-blue', icon: Activity };
+        if (phase === 'INITIALIZING') return { status: 'INICIALIZANDO', active: true, color: 'text-accent-blue', icon: Cpu };
+        if (['RESPOND', 'LESSONS_LEARNT'].includes(phase)) return { status: 'ORQUESTRANDO', active: true, color: 'text-accent-blue', icon: Activity };
         return { status: 'IDLE', active: false, color: 'text-text-muted', icon: Shield };
       case 'EDGE_DLP':
-        if (phase === 'MONITOR') return { status: 'SCANNING', active: true, color: 'text-accent-amber', icon: Activity };
-        if (phase === 'DETECT') return { status: 'ALERT', active: true, color: 'text-accent-red', icon: AlertTriangle };
-        if (phase === 'RESPOND') return { status: 'ISOLATING', active: true, color: 'text-accent-red', icon: Lock };
+        if (phase === 'MONITOR') return { status: 'ESCANEANDO', active: true, color: 'text-accent-amber', icon: Activity };
+        if (phase === 'DETECT') return { status: 'ALERTA', active: true, color: 'text-accent-red', icon: AlertTriangle };
+        if (phase === 'RESPOND') return { status: 'ISOLANDO', active: true, color: 'text-accent-red', icon: Lock };
         if (phase === 'IR_RECOVERY') return { status: 'PATCHING', active: true, color: 'text-accent-green', icon: CheckCircle2 };
         return { status: 'IDLE', active: false, color: 'text-text-muted', icon: Shield };
       case 'RAG_INTEL':
-        if (phase === 'ANALYSE') return { status: 'QUERYING', active: true, color: 'text-accent-blue', icon: Database };
-        return { status: 'SYNCED', active: false, color: 'text-accent-green', icon: CheckCircle2 };
+        if (phase === 'ANALYSE') return { status: 'CONSULTANDO', active: true, color: 'text-accent-blue', icon: Database };
+        return { status: 'SINCRONIZADO', active: false, color: 'text-accent-green', icon: CheckCircle2 };
+      case 'THREAT_HUNTER':
+        if (phase === 'HUNT') return { status: 'CAÇANDO', active: true, color: 'text-accent-blue', icon: Activity };
+        return { status: 'IDLE', active: false, color: 'text-text-muted', icon: Shield };
       default:
         return { status: 'IDLE', active: false, color: 'text-text-muted', icon: Shield };
     }
@@ -156,7 +159,7 @@ const AgentStatusCard = ({ agent, phase }: AgentStatusProps) => {
   const Icon = details.icon;
 
   return (
-    <div className={`flex items-center justify-between p-3 bg-white/5 border-l-4 rounded-r-sm transition-all duration-300 ${details.active ? 'border-accent-blue bg-accent-blue/5' : 'border-border-dim'}`}>
+    <div className={`flex items-center justify-between p-3 bg-white/5 border-l-4 rounded-r-sm transition-all duration-300 ${details.active ? 'border-accent-blue bg-accent-blue/5' : 'border-border-dim opacity-60'}`}>
       <div className="flex items-center gap-3">
         <div className="relative">
           {details.active && (
@@ -166,7 +169,7 @@ const AgentStatusCard = ({ agent, phase }: AgentStatusProps) => {
               className={`absolute inset-0 rounded-full blur-sm ${details.color.replace('text-', 'bg-')}`}
             />
           )}
-          <div className={`relative p-2 rounded-full bg-black/40 border border-white/10 ${details.color}`}>
+          <div className={`relative p-2 rounded-full bg-black/40 border border-white/10 ${details.active ? details.color : 'text-text-muted'}`}>
             <Icon size={14} />
           </div>
         </div>
@@ -175,12 +178,17 @@ const AgentStatusCard = ({ agent, phase }: AgentStatusProps) => {
           <span className="text-[12px] font-bold tracking-tight">{agent.name}</span>
           <div className="flex items-center gap-2 mt-0.5">
             <div className="w-16 h-1 bg-white/10 rounded-full overflow-hidden">
-              <motion.div 
-                animate={{ width: details.active ? ['40%', '80%', '60%'] : '30%' }}
-                className={`h-full ${details.active ? 'bg-accent-blue' : 'bg-text-muted'}`} 
-              />
+              {details.active ? (
+                <motion.div 
+                  animate={{ width: ['40%', '80%', '60%'] }}
+                  transition={{ repeat: Infinity, duration: 1.5 }}
+                  className="h-full bg-accent-blue" 
+                />
+              ) : (
+                <div className="h-full w-[20%] bg-text-muted" />
+              )}
             </div>
-            <span className="text-[8px] text-text-muted uppercase">Health: 98%</span>
+            <span className="text-[8px] text-text-muted uppercase">Saúde: 98%</span>
           </div>
         </div>
       </div>
@@ -229,17 +237,17 @@ export default function App() {
       aiRef.current = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     }
     
-    // Initial logs
-    addLog('system', 'PetroShield_Core', 'Initializing AxeGuard Multi-Agent Framework...');
-    setTimeout(() => addLog('system', 'PetroShield_Core', 'Loading Subgraphs: [Supervisor, Edge_DLP, RAG_Intel, CLevel_Reporter]'), 500);
-    setTimeout(() => addLog('system', 'PetroShield_Core', 'Listening to SCADA Telemetry (Camaçari Node) on port 443...'), 1000);
+    // Logs Iniciais
+    addLog('system', 'PetroShield_Core', 'Inicializando Framework Multi-Agente AxeGuard...');
+    setTimeout(() => addLog('system', 'PetroShield_Core', 'Carregando Subgrafos: [Supervisor, Edge_DLP, RAG_Intel, CLevel_Reporter, Threat_Hunter]'), 500);
+    setTimeout(() => addLog('system', 'PetroShield_Core', 'Monitorando Telemetria SCADA (Nó Camaçari) na porta 443...'), 1000);
     setTimeout(() => startCycle(), 2000);
   }, []);
 
   const addLog = (type: LogEntry['type'], agent: string, message: string) => {
     const newLog: LogEntry = {
       id: Math.random().toString(36).substr(2, 9),
-      timestamp: new Date().toLocaleTimeString('en-GB'),
+      timestamp: new Date().toLocaleTimeString('pt-BR'),
       agent,
       message,
       type
@@ -252,78 +260,132 @@ export default function App() {
 
   const updatePhase = (phase: SOCPhase) => setState(prev => ({ ...prev, phase }));
 
+  /**
+   * Gera uma análise heurística local quando a IA atinge o limite de taxa (429)
+   * ou quando o sistema prefere processamento "on-edge".
+   */
+  const getHeuristicAnalysis = (threat: ThreatEvent) => {
+    const insights = [
+      `Anomalia detectada em ${threat.source}. Assinatura de comportamento sugere ${threat.type}. Recomendado isolamento imediato.`,
+      `Padrão de tráfego em ${threat.source} correlaciona-se com táticas de ${threat.severity === 'CRITICAL' ? 'Exfiltração Ativa' : 'Reconhecimento'}.`,
+      `Integridade de dados em risco em ${threat.source}. Protocolo LockShield sugere verificação de firmware CRC.`,
+      `Alerta de alta severidade em ${threat.source}. Vetor de ataque: ${threat.type}. Acionando camadas de defesa proativa.`,
+      `Insight Heurístico: Bloqueio Zero-Trust recomendado para conter a propagação de ${threat.type}.`
+    ];
+    return insights[Math.floor(Math.random() * insights.length)];
+  };
+
   const startCycle = async () => {
-    // 1. MONITOR
-    updatePhase('MONITOR');
-    addLog('system', 'Supervisor', 'Routing lifecycle to `MONITOR` state...');
-    addLog('tool', 'Edge_DLP', 'Ingesting IoT Flow: 4.8 MB/s from Camaçari Petrochemical Hub.');
+    // 0. HUNT (PROACTIVE PHASE)
+    updatePhase('HUNT');
+    addLog('system', 'Supervisor', 'Redirecionando ciclo para estado de `CAÇA` proativa...');
+    addLog('agent', 'Threat_Hunter', 'Executando varredura heurística em busca de anomalias em rede...');
+    addLog('tool', 'Threat_Hunter', 'Mapeando vetores de ataque potenciais e spot firewalls ativos.');
     
-    await wait(2000);
-
-    // 2. DETECT
-    const threat = MOCK_THREATS[Math.floor(Math.random() * MOCK_THREATS.length)];
-    setState(prev => ({ ...prev, currentIncident: threat, phase: 'DETECT' }));
-    addLog('alert', 'Edge_DLP', `[CRITICAL_ALERT] ${threat.type} detected at ${threat.source}`);
-    addLog('agent', 'Edge_DLP', `Anomaly signature match for ${threat.description}`);
-
-    await wait(2500);
-
-    // 3. ANALYSE (AI Driven)
-    updatePhase('ANALYSE');
-    addLog('system', 'RAG_Intel', 'Executing context_engineering_chain...');
-    addLog('rag', 'RAG_Intel', 'Querying MITRE ICS Database & Internal Forensic Archives...');
-    
-    let aiAnalysis = "LockBit variant detected. Target: Industrial Controller. Lateral propagation probability is HIGH.";
-    if (aiRef.current) {
-        try {
-            const resp = await aiRef.current.models.generateContent({
-                model: 'gemini-3-flash-preview',
-                contents: `Analyze this cybersecurity threat in a technical oil & gas context: ${threat.description}. Be concise, 1 sentence.`,
-            });
-            aiAnalysis = resp.text || aiAnalysis;
-        } catch (e) {
-            console.error(e);
-        }
-    }
-    addLog('agent', 'RAG_Intel', `AI INSIGHT: ${aiAnalysis}`);
-
     await wait(3000);
-
-    // 4. RESPOND
-    updatePhase('RESPOND');
-    addLog('agent', 'Supervisor', 'Escalating extraction protocol. Routing to `RESPOND` subgraph.');
-    addLog('tool', 'Edge_DLP', `ACTION: Executing Tool block_port_and_isolate_subnet(target_ip="${threat.source}", strict=True)`);
-    addLog('system', 'Edge_DLP', 'Isolating VLAN 40. Propagation halted.');
-
-    await wait(2000);
-
-    // 5. IR RECOVERY
-    updatePhase('IR_RECOVERY');
-    addLog('agent', 'Recovery_Engine', 'Patching S7-1500 firmware. Verifying CRC integrity.');
-    addLog('system', 'Recovery_Engine', 'Node 10.0.0.12 stabilized. Normal ops resuming.');
     
-    setState(prev => ({
+    // Implementar lógica onde o Hunter pode ou não encontrar algo
+    const foundSomething = Math.random() > 0.3;
+
+    if (foundSomething) {
+      addLog('alert', 'Threat_Hunter', '[INCIDENTE_DETECTADO] Padrão malicioso identificado em zona de baixa confiança!');
+      await wait(1000);
+      
+      // 1. MONITOR
+      updatePhase('MONITOR');
+      addLog('system', 'Supervisor', 'Iniciando monitoramento intensivo de fluxo de dados...');
+      addLog('tool', 'Edge_DLP', 'Ingerindo Fluxo IoT: 4.8 MB/s do Polo Petroquímico de Camaçari.');
+      
+      await wait(2000);
+
+      // 2. DETECT
+      const threat = MOCK_THREATS[Math.floor(Math.random() * MOCK_THREATS.length)];
+      setState(prev => ({ ...prev, currentIncident: threat, phase: 'DETECT' }));
+      addLog('alert', 'Edge_DLP', `[ALERTA_CRÍTICO] ${threat.type} detectado em ${threat.source}`);
+      addLog('agent', 'Edge_DLP', `Combinando assinatura de anomalia para: ${threat.description}`);
+
+      await wait(2500);
+
+      // 3. ANALYSE (AI Driven with Heuristic Fallback)
+      updatePhase('ANALYSE');
+      addLog('system', 'RAG_Intel', 'Executando context_engineering_chain...');
+      addLog('rag', 'RAG_Intel', 'Consultando Banco de Dados MITRE ICS e Arquivos Forenses Internos...');
+      
+      let aiAnalysis = getHeuristicAnalysis(threat);
+      let usingAI = false;
+
+      if (aiRef.current) {
+          try {
+              const resp = await aiRef.current.models.generateContent({
+                  model: 'gemini-3-flash-preview',
+                  contents: `Analise esta ameaça de cibersegurança em um contexto técnico de óleo e gás: ${threat.description}. Seja conciso, responda apenas 1 frase curta em português sem negrito.`,
+              });
+              if (resp.text) {
+                aiAnalysis = resp.text;
+                usingAI = true;
+              }
+          } catch (e: any) {
+              console.warn("AI Analysis Failed. Falling back to Heuristic Mode.", e);
+              if (e?.status === 429 || (e?.message && e.message.includes('429'))) {
+                  addLog('system', 'RAG_Intel', 'AVISO: Limite de cota atingido. Mudando para MODO HEURÍSTICO LOCAL.');
+              } else {
+                  addLog('system', 'RAG_Intel', 'Falha na conexão neural. Acionando análise de backup.');
+              }
+          }
+      }
+      addLog('agent', 'RAG_Intel', `${usingAI ? 'INSIGHT IA' : 'ANÁLISE HEURÍSTICA'}: ${aiAnalysis}`);
+
+      await wait(4000); // Increased wait to slow down and protect quota
+
+      // 4. RESPOND
+      updatePhase('RESPOND');
+      addLog('agent', 'Supervisor', 'Escalando protocolo de extração. Roteando para subgrafo de `RESPOSTA`.');
+      addLog('tool', 'Edge_DLP', `AÇÃO: Executando Ferramenta block_port_and_isolate_subnet(target_ip="${threat.source}", strict=True)`);
+      addLog('system', 'Edge_DLP', 'Isolando VLAN 40. Propagação interrompida.');
+
+      await wait(2000);
+
+      // 5. IR RECOVERY
+      updatePhase('IR_RECOVERY');
+      addLog('agent', 'Recovery_Engine', 'Atualizando firmware S7-1500. Verificando integridade CRC.');
+      addLog('system', 'Recovery_Engine', 'Nó 10.0.0.12 estabilizado. Operações normais retomadas.');
+      
+      setState(prev => ({
+          ...prev,
+          metrics: {
+              ...prev.metrics,
+              threatsBlocked: prev.metrics.threatsBlocked + 1,
+              uptimeEvaded: prev.metrics.uptimeEvaded + (Math.random() * 5),
+              moneySafeguarded: prev.metrics.moneySafeguarded + 80000,
+              complianceStatus: Math.min(100, prev.metrics.complianceStatus + 0.1),
+              networkHealth: Math.min(100, Math.max(0, 95 + (Math.random() * 5)))
+          }
+      }));
+
+      await wait(3000);
+
+      // 6. LESSONS LEARNT
+      updatePhase('LESSONS_LEARNT');
+      addLog('agent', 'CLevel_Reporter', 'Gerando relatório de incidente automatizado para revisão da diretoria.');
+      addLog('rag', 'Supervisor', 'Indexando hash de vetor em memória de longo prazo. Vacinação multi-tenant concluída.');
+
+      await wait(3000);
+    } else {
+      addLog('system', 'Threat_Hunter', 'Nenhuma ameaça emergente detectada. Mantendo vigilância proativa.');
+      setState(prev => ({
         ...prev,
         metrics: {
-            ...prev.metrics,
-            threatsBlocked: prev.metrics.threatsBlocked + 1,
-            uptimeEvaded: prev.metrics.uptimeEvaded + (Math.random() * 5),
-            moneySafeguarded: prev.metrics.moneySafeguarded + 80000
+          ...prev.metrics,
+          networkHealth: Math.min(100, prev.metrics.networkHealth + 0.05)
         }
-    }));
+      }));
+      await wait(3000);
+    }
 
-    await wait(2000);
-
-    // 6. LESSONS LEARNT
-    updatePhase('LESSONS_LEARNT');
-    addLog('agent', 'CLevel_Reporter', 'Generating automated incident report for board review.');
-    addLog('rag', 'Supervisor', 'Indexing vector hash to long-term memory. Multi-tenant vaccination complete.');
-
-    await wait(2000);
-
-    // Restart the cycle with a bit of delay
+    // Reiniciar ciclo
     setTimeout(() => {
-        addLog('system', 'Supervisor', 'System resting. Entering STANDBY mode.');
+        updatePhase('STANDBY');
+        addLog('system', 'Supervisor', 'Sistema em repouso. Entrando em modo STANDBY.');
         setTimeout(() => startCycle(), 5000);
     }, 1000);
   };
@@ -339,70 +401,138 @@ export default function App() {
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-accent-blue rounded flex items-center justify-center font-bold text-bg">AX</div>
           <div className="text-lg font-bold tracking-tight">
-            AXEGUARD <span className="font-light opacity-60">CORE_SOC</span>
+            PETROSHIELD <span className="font-light opacity-60">AXEGUARD</span>
           </div>
         </div>
         
         <div className="flex items-center gap-6 text-[12px] font-mono whitespace-nowrap">
-            <div className="flex gap-1"><span className="text-text-muted">LATENCY:</span> 14ms</div>
-            <div className="flex gap-1"><span className="text-text-muted">NODE:</span> CAMAÇARI_BR_01</div>
+            <div className="flex gap-1"><span className="text-text-muted">LATÊNCIA:</span> 14ms</div>
+            <div className="flex gap-1"><span className="text-text-muted">NÓ:</span> CAMAÇARI_BR_01</div>
             <div className="flex gap-1"><span className="text-text-muted">UPTIME:</span> 184:12:09</div>
-            <div className="text-accent-green font-bold"><span className="text-text-muted">SEC_PROTOCOL:</span> ACTIVE</div>
+            <div className="text-accent-green font-bold"><span className="text-text-muted">PROTOCOLO_SEG:</span> ATIVO</div>
         </div>
       </header>
 
-      {/* Main Grid: 640px left column */}
+      {/* Main Grid: column dimensions */}
       <main className="flex-1 grid grid-cols-[640px_1fr] bg-border-dim gap-[2px] overflow-hidden">
         
-        {/* TUI Panel (Left) */}
+        {/* Painel TUI (Esquerda) */}
         <section className="bg-bg p-4 flex flex-col overflow-hidden">
-          <div className="tui-toolbar mb-2 pb-1">STREAM: LIVE_ORCHESTRATION_LOGS v2.4</div>
+          <div className="tui-toolbar mb-2 pb-1 uppercase">Stream: Logs_Orquestração_Ao_Vivo v2.5 [PT-BR]</div>
           <TerminalWindow logs={state.logs} />
           
           <div className="mt-3 flex gap-2 font-mono text-[13px] items-center">
             <span className="text-accent-green">axeguard@soc:~$</span>
-            <span>node orchestrator.ts --expand --verbose</span>
+            <span>node orquestrador.ts --caça-proativa --verbose</span>
             <span className="w-2 h-3.5 bg-accent-green animate-pulse" />
           </div>
         </section>
 
-        {/* Dashboard Panel (Right) */}
+        {/* Painel Dashboard (Direita) */}
         <section className="bg-surface p-6 flex flex-col gap-6 overflow-y-auto custom-scrollbar">
           <div>
-            <h2 className="text-[14px] font-bold uppercase tracking-[2px] text-accent-blue mb-1">Executive Metrics</h2>
-            <p className="text-[11px] text-text-muted">Real-time Value Chain Tensions</p>
+            <h2 className="text-[14px] font-bold uppercase tracking-[2px] text-accent-blue mb-1">Métricas Executivas</h2>
+            <p className="text-[11px] text-text-muted">Tensões na Cadeia de Valor em Tempo Real</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="bg-bg border border-border-dim p-4 rounded-lg">
-                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Current Threat</div>
+                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Ameaça Atual</div>
                 <div className={`text-2xl font-bold font-mono ${state.phase === 'DETECT' ? 'text-accent-red' : 'text-accent-green'}`}>
-                    {state.phase === 'DETECT' ? "CRITICAL" : "STABLE"}
+                    {state.phase === 'DETECT' ? "CRÍTICA" : (state.phase === 'HUNT' ? "CAÇANDO..." : "ESTÁVEL")}
                 </div>
             </div>
             <div className="bg-bg border border-border-dim p-4 rounded-lg">
-                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Loss Prevented</div>
+                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Perda Evitada</div>
                 <div className="text-2xl font-bold font-mono">
                     R$ {(state.metrics.moneySafeguarded/1000).toFixed(0)}K
                 </div>
             </div>
             <div className="bg-bg border border-border-dim p-4 rounded-lg">
-                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Anomalies 24H</div>
-                <div className="text-2xl font-bold font-mono">4,821</div>
+                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Anomalias 24H</div>
+                <div className="text-2xl font-bold font-mono">4.821</div>
             </div>
             <div className="bg-bg border border-border-dim p-4 rounded-lg">
-                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Downtime Saved</div>
+                <div className="text-[10px] uppercase text-text-muted tracking-widest mb-2 font-bold">Downtime Salvo</div>
                 <div className="text-2xl font-bold font-mono">14.2h</div>
             </div>
           </div>
 
+          {/* Detalhes do Incidente */}
+          <AnimatePresence mode="wait">
+            {state.currentIncident && (
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-black/40 border border-border-dim p-4 space-y-4 relative overflow-hidden"
+              >
+                <div className="absolute top-0 right-0 p-2 opacity-10">
+                  <Lock size={48} className="text-accent-red" />
+                </div>
+                
+                <h3 className="text-xs font-bold text-accent-red uppercase flex items-center gap-2 border-b border-white/10 pb-2">
+                  <AlertTriangle size={14} /> Detalhes do Incidente Proativo
+                </h3>
+
+                <div className="grid grid-cols-2 gap-4 text-[11px]">
+                  <div>
+                    <div className="text-text-muted uppercase text-[9px] mb-0.5">ID Alerta</div>
+                    <div className="font-mono text-accent-blue">{state.currentIncident.id}</div>
+                  </div>
+                  <div>
+                    <div className="text-text-muted uppercase text-[9px] mb-0.5">Severidade</div>
+                    <div className={`font-bold ${state.currentIncident.severity === 'CRITICAL' ? 'text-accent-red' : 'text-accent-amber'}`}>
+                      {state.currentIncident.severity}
+                    </div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-text-muted uppercase text-[9px] mb-0.5">Origem da Ameaça</div>
+                    <div className="text-white font-bold">{state.currentIncident.source}</div>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="text-text-muted uppercase text-[9px]">Análise Forense Preliminar</div>
+                  <div className="text-[12px] leading-relaxed bg-white/5 p-2 border border-white/5 rounded italic text-text-main">
+                    "{state.currentIncident.description}"
+                  </div>
+                </div>
+
+                {state.currentIncident.mitigationSteps && (
+                  <div className="space-y-2">
+                    <div className="text-text-muted uppercase text-[9px] flex justify-between">
+                      <span>Protocolo de Resposta Agente</span>
+                      <span className="text-accent-green">Ativo</span>
+                    </div>
+                    <div className="space-y-1">
+                      {state.currentIncident.mitigationSteps.map((step, idx) => (
+                        <motion.div 
+                          key={idx}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: idx * 0.2 }}
+                          className="flex items-start gap-2 text-[10px] text-accent-green font-mono"
+                        >
+                          <span className="opacity-50 tracking-tighter">[{idx + 1}]</span>
+                          <span>{step}</span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <div className="space-y-3">
-            <div className="text-[10px] uppercase text-text-muted tracking-widest font-bold">Active Agent Pool</div>
+            <div className="text-[10px] uppercase text-text-muted tracking-widest font-bold">Pool de Agentes Ativos</div>
             <div className="flex flex-col gap-3">
               {[
-                { id: 'SUPERVISOR', name: 'SUPERVISOR_V2', task: 'Orchestration Logic' },
-                { id: 'EDGE_DLP', name: 'EDGE_DLP_PROB', task: 'Deep Packet Inspection' },
-                { id: 'RAG_INTEL', name: 'RAG_INTEL_OPS', task: 'MITRE Contextualizer' },
+                { id: 'SUPERVISOR', name: 'SUPERVISOR_V2', task: 'Lógica de Orquestração' },
+                { id: 'THREAT_HUNTER', name: 'THREAT_HUNTER', task: 'Caça Proativa de Ameaças' },
+                { id: 'EDGE_DLP', name: 'EDGE_DLP_PROB', task: 'Inspeção Profunda de Pacotes' },
+                { id: 'RAG_INTEL', name: 'RAG_INTEL_OPS', task: 'Contextualizador MITRE' },
               ].map(agent => (
                 <AgentStatusCard 
                   key={agent.id} 
@@ -414,7 +544,7 @@ export default function App() {
           </div>
 
           <div className="mt-auto pt-6">
-            <div className="text-[10px] uppercase text-text-muted tracking-widest mb-3 font-bold">MITRE Tactic Coverage (ICS)</div>
+            <div className="text-[10px] uppercase text-text-muted tracking-widest mb-3 font-bold">Cobertura de Táticas MITRE (ICS)</div>
             <div className="grid grid-cols-5 gap-1">
                 {['INTR', 'EXEC', 'PERS', 'PRIV', 'EVAS', 'DISC', 'LATM', 'COLL', 'C&C', 'EXFI'].map((code, i) => (
                     <div key={code} className={`aspect-square bg-[#1a1d23] border border-border-dim flex items-center justify-center text-[8px] text-center p-0.5
@@ -431,9 +561,9 @@ export default function App() {
 
       {/* Footer (40px) */}
       <footer className="h-[40px] bg-surface border-t border-border-dim px-6 flex items-center justify-between font-mono text-[10px] text-text-muted shrink-0">
-        <div>LOG_SOURCE: /var/log/axeguard/agentic_flow.log</div>
-        <div>ENCRYPTION: AES-256-GCM [FIPS-140-2]</div>
-        <div>SYSTEM TIME: {new Date().toISOString().split('T')[0]} {new Date().toLocaleTimeString()} UTC</div>
+        <div>FONTE_LOGS: /var/log/axeguard/fluxo_agente.log</div>
+        <div>CRIPTOGRAFIA: AES-256-GCM [FIPS-140-2]</div>
+        <div>HORA DO SISTEMA: {new Date().toISOString().split('T')[0]} {new Date().toLocaleTimeString()} UTC</div>
       </footer>
     </div>
   );
