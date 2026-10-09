@@ -1,0 +1,34 @@
+# Netlify configuration for AXE-Guard Multi-Agents Shell.
+#
+# The official Netlify GitHub App integration (connect the repo in the
+# Netlify dashboard) auto-discovers this file on push to main and runs the
+# build. The GitHub Actions release workflow (.github/workflows/release.yml)
+# handles GitHub Release creation; it does NOT call the Netlify API.
+
+[build]
+  command = "bun run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+  # Netlify's build image ships with Bun; this is a defensive pin.
+  BUN_VERSION = "1.1"
+
+# SPA fallback — every unknown route serves index.html so the (future) React
+# Router handles it. Static assets in /assets are cached aggressively.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
